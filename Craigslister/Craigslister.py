@@ -1,17 +1,17 @@
-from twython import Twython
+import twython
 import MySQLdb
 import sqlalchemy
 import requests
-from bs4 import BeautifulSoup
+import bs4
 import datetime
-from time import strptime
+import time
 import pandas as pd
 
 def parseResp(conn, crawl_id, load_new='N'):
 	resp, city, active, user = genResp(conn, crawl_id)
 	crawl_event_id = genCrawlEventId(conn, crawl_id)
 	crawl_date = datetime.datetime.now()
-	c_ = BeautifulSoup(resp.content).find_all("div", attrs={"class": "content"})
+	c_ = bs4.BeautifulSoup(resp.content).find_all("div", attrs={"class": "content"})
 	t_ = c_[0].find_all("p", attrs={"class": "row"})
 	r_ = []
 	for i in t_:
@@ -22,7 +22,7 @@ def parseResp(conn, crawl_id, load_new='N'):
 		except Exception:
 			pid_parent = 0
 			pass
-		post_date	= datetime.datetime(*strptime(dict(i.find_all("time")[0].attrs)["datetime"], "%Y-%m-%d %H:%M")[:5])
+		post_date	= datetime.datetime(time.strptime(dict(i.find_all("time")[0].attrs)["datetime"], "%Y-%m-%d %H:%M")[:5])
 		price 		= i.find_all("span", attrs={"class": "price"})[0].string.replace('$','')
 		title		= i.find_all("a", attrs={"class": "hdrlnk"})[0].string
 		if dict(i.find_all("a")[0].attrs)["href"][:4] == 'http':
@@ -101,7 +101,7 @@ def tweet(parse_resp):
 	APP_SECRET = '3gZZVjWI8XpVwxe8Ih69zRZYSfAuVWYsZUO9bsDYxd0dUkkFQC'  # Customer secret here
 	OAUTH_TOKEN = '3152163098-riRIzLkdwG4nlxYGY1BNVz7aMIGQtWASva6j6lZ'  # Access Token here
 	OAUTH_TOKEN_SECRET = 'wxvwHUvETo8uwhzgXi00D1uNAOEKqawpqR1qHolcJlutN'  # Access Token Secret here
-	twitter = Twython(APP_KEY
+	twitter = twython.Twython(APP_KEY
 						,APP_SECRET
 						,OAUTH_TOKEN
 						,OAUTH_TOKEN_SECRET)
@@ -116,3 +116,68 @@ def tweet(parse_resp):
 						+ pr['link'])
 		print 'Tweet: ', new_tweet
 		twitter.update_status(status=new_tweet)
+
+def genCrawlEventId(conn, crawl_id):
+	cur 				= conn.cursor()
+	req					= cur.execute(
+		"INSERT INTO crawl_event (crawl_id) VALUES (" 
+		+ str(crawl_id)
+		+ ");"
+		)
+	cur.close()
+	conn.commit()
+	cur 				= conn.cursor()
+	query				= cur.execute(
+		"SELECT max(crawl_event_id) FROM crawl_event WHERE crawl_id = " 
+		+ str(crawl_id)
+		+ ";"
+		)
+	print 'genCrawlEventId query: ', query
+	crawl_event_id		= cur.fetchone()
+	print 'crawl_event_id :', crawl_event_id
+	crawl_event_id 		= int(crawl_event_id[0])
+	cur.close()
+	conn.commit()
+	return crawl_event_id
+
+def getActives(conn):
+	cur 				= conn.cursor()
+	req					= cur.execute(
+		"SELECT crawl_id FROM crawler WHERE active = 1;"
+		)
+	id					= cur.fetchall()
+	ids 				= [int(i[0]) for i in id]
+	cur.close()
+	return ids
+
+
+def genResp(conn, crawl_id):
+	cur 				= conn.cursor()
+	req					= cur.execute(
+		"SELECT * FROM crawler WHERE crawl_id = " 
+		+ str(crawl_id)
+		+ ";"
+		)
+	params				= cur.fetchall()
+	print params
+	cur.close()
+	user 		= str(params[0][2])
+	search_term 		= str(params[0][3])
+	price_low 			= int(params[0][4])
+	price_high 			= int(params[0][5])
+	city 				= str(params[0][6])
+	active 				= str(params[0][7])
+	url_arg				= {'query': search_term, 
+							'minAsk': price_low,
+							'maxAsk': price_high,
+							'sort': 'rel',
+							'srchType': 'T'
+							}
+	url_base 			= ('http://' + 
+							city + 
+							'.craigslist.org/search/sss')
+	r = requests.get(url_base, params=url_arg)
+	r.raise_for_status()
+	cur.close()
+	print "full url: ", r.url
+	return r, city, active, user

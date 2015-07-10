@@ -8,7 +8,7 @@ except ImportError:
 try:
   long_description = open(os.path.join(os.path.dirname(__file__), 'README.md')).read()
 except:
-  long_description = u"Python package for Quandl API access"
+  long_description = u"Python package for craigslister parser"
 
 setup(
     name = 'craigslister',
@@ -20,5 +20,5 @@ setup(
     download_url = 'http://mpburt.com/craigslister/craigslister.tar.gz'
     install_requires = ['sqlalchemy','MySQLdb','requests','datetime','time','pandas','twython'],
     packages = ['Craigslister'],
-    scripts = ['bin/craigslister_.py'],
+    scripts = [],
 )
